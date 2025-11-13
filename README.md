@@ -42,21 +42,7 @@ A Microsoft Edge browser extension that allows you to take markdown-formatted no
 
 ### Development Installation
 
-#### Step 1: Prepare Icon Files (Important!)
-
-Before loading the extension, you need to convert the icon:
-
-1. Navigate to the `icons/` folder
-2. Follow instructions in `ICON_INSTRUCTIONS.md` to convert `icon.svg` to PNG files
-3. You need 4 PNG files: icon16.png, icon32.png, icon48.png, icon128.png
-
-**Quick option for testing:** The placeholder icons will work but won't look good. For proper icons, use an online converter:
-- Go to https://cloudconvert.com/svg-to-png
-- Upload `icons/icon.svg`
-- Convert to 16x16, 32x32, 48x48, and 128x128 sizes
-- Save as icon16.png, icon32.png, icon48.png, icon128.png in the `icons/` folder
-
-#### Step 2: Load Extension in Microsoft Edge
+#### Step 1: Load Extension in Microsoft Edge
 
 1. Open Microsoft Edge
 2. Navigate to `edge://extensions/`
@@ -65,7 +51,7 @@ Before loading the extension, you need to convert the icon:
 5. Select the `AnnotateWeb` folder (this project directory)
 6. The extension should now appear in your extensions list
 
-#### Step 3: Pin the Extension (Optional but Recommended)
+#### Step 2: Pin the Extension (Optional but Recommended)
 
 1. Click the Extensions icon in your toolbar (puzzle piece)
 2. Find "AnnotateWeb" in the list
