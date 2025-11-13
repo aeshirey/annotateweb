@@ -6,6 +6,8 @@ const urlMatcher = new URLMatcher();
 
 let currentUrl = '';
 let editingNoteId = null;
+let currentDraft = null;
+let isDraftMode = false;
 
 // DOM Elements
 const listView = document.getElementById('listView');
@@ -60,6 +62,17 @@ async function init() {
     
     // Load regex examples
     loadRegexExamples();
+    
+    // Setup auto-save handlers for when popup closes
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    window.addEventListener('pagehide', handleBeforeUnload);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    
+    // Also save draft when popup is about to close
+    window.addEventListener('blur', () => {
+      // Small delay to ensure this is actually losing focus
+      setTimeout(handleBeforeUnload, 100);
+    });
   } catch (error) {
     console.error('Initialization error:', error);
     notesList.innerHTML = '<div class="loading">Error loading extension</div>';
@@ -108,11 +121,15 @@ function createNoteCard(note) {
   const timeAgo = getTimeAgo(new Date(note.lastModified));
   const preview = renderMarkdownPreview(note.content);
   const hasPattern = note.urlPattern && note.urlPattern.trim() !== '';
+  const isDraft = note.isDraft || false;
   
   return `
-    <div class="note-card">
+    <div class="note-card ${isDraft ? 'draft-card' : ''}">
       <div class="note-header">
-        <div class="note-title">${escapeHtml(note.title)}</div>
+        <div class="note-title">
+          ${isDraft ? '<span class="draft-badge">DRAFT</span>' : ''}
+          ${escapeHtml(note.title)}
+        </div>
         <div class="note-actions">
           <button class="note-action-btn" data-edit-id="${note.id}" title="Edit">✏️</button>
           <button class="note-action-btn" data-delete-id="${note.id}" title="Delete">🗑️</button>
@@ -203,8 +220,8 @@ function setupEventListeners() {
   
   importFileInput.addEventListener('change', importNotes);
   
-  backBtn.addEventListener('click', showListView);
-  cancelBtn.addEventListener('click', showListView);
+  backBtn.addEventListener('click', handleBackButton);
+  cancelBtn.addEventListener('click', handleCancelButton);
   saveBtn.addEventListener('click', saveNote);
   deleteBtn.addEventListener('click', deleteCurrentNote);
   
@@ -268,26 +285,116 @@ function updateMarkdownPreview() {
   }
 }
 
+// Handle visibility change - save draft when popup loses focus
+async function handleVisibilityChange() {
+  if (document.hidden) {
+    await handleBeforeUnload();
+  }
+}
+
+// Handle before unload - auto-save draft
+async function handleBeforeUnload() {
+  // Only save draft if in edit view and not editing an existing non-draft note
+  if (editView.style.display === 'block' && (!editingNoteId || isDraftMode)) {
+    const title = noteTitle.value.trim();
+    const content = noteContent.value.trim();
+    const pattern = urlPattern.value.trim();
+    
+    // Only save if there's actual content
+    if (title || content) {
+      try {
+        await storage.saveDraft({
+          url: noteUrl.value,
+          title: title || 'Untitled Draft',
+          content: content || '',
+          urlPattern: pattern || null
+        });
+      } catch (error) {
+        console.error('Error saving draft:', error);
+      }
+    }
+  }
+}
+
+// Handle back button - save draft if needed
+async function handleBackButton() {
+  await saveDraftIfNeeded();
+  showListView();
+}
+
+// Handle cancel button - save draft if needed
+async function handleCancelButton() {
+  await saveDraftIfNeeded();
+  showListView();
+}
+
+// Save draft if there's unsaved content
+async function saveDraftIfNeeded() {
+  if (editView.style.display === 'block' && (!editingNoteId || isDraftMode)) {
+    const title = noteTitle.value.trim();
+    const content = noteContent.value.trim();
+    const pattern = urlPattern.value.trim();
+    
+    // Only save if there's actual content
+    if (title || content) {
+      try {
+        await storage.saveDraft({
+          url: noteUrl.value,
+          title: title || 'Untitled Draft',
+          content: content || '',
+          urlPattern: pattern || null
+        });
+      } catch (error) {
+        console.error('Error saving draft:', error);
+      }
+    }
+  }
+}
+
 // Show list view
 function showListView() {
   listView.style.display = 'block';
   editView.style.display = 'none';
   editingNoteId = null;
+  currentDraft = null;
+  isDraftMode = false;
   noteForm.reset();
   patternExamples.style.display = 'none';
   loadNotes();
 }
 
 // Create new note
-function createNewNote() {
+async function createNewNote() {
   editingNoteId = null;
-  editTitle.textContent = 'New Note';
-  deleteBtn.style.display = 'none';
+  currentDraft = null;
+  isDraftMode = false;
   
-  noteTitle.value = '';
-  noteUrl.value = urlMatcher.getCleanUrlForStorage(currentUrl);
-  urlPattern.value = '';
-  noteContent.value = '';
+  const cleanUrl = urlMatcher.getCleanUrlForStorage(currentUrl);
+  
+  // Check if there's an existing draft for this URL
+  const existingDraft = await storage.getDraftForUrl(cleanUrl);
+  
+  if (existingDraft) {
+    // Load the draft
+    currentDraft = existingDraft;
+    isDraftMode = true;
+    editTitle.textContent = 'Edit Draft';
+    deleteBtn.style.display = 'inline-block';
+    
+    noteTitle.value = existingDraft.title;
+    noteUrl.value = existingDraft.url;
+    urlPattern.value = existingDraft.urlPattern || '';
+    noteContent.value = existingDraft.content;
+  } else {
+    // Create new note/draft
+    editTitle.textContent = 'New Note';
+    deleteBtn.style.display = 'none';
+    
+    noteTitle.value = '';
+    noteUrl.value = cleanUrl;
+    urlPattern.value = '';
+    noteContent.value = '';
+  }
   
   updateMarkdownPreview();
   validateUrlPattern();
@@ -306,7 +413,9 @@ async function editNote(id) {
   }
   
   editingNoteId = id;
-  editTitle.textContent = 'Edit Note';
+  currentDraft = note.isDraft ? note : null;
+  isDraftMode = note.isDraft || false;
+  editTitle.textContent = note.isDraft ? 'Edit Draft' : 'Edit Note';
   deleteBtn.style.display = 'inline-block';
   
   noteTitle.value = note.title;
@@ -344,19 +453,31 @@ async function saveNote() {
   
   try {
     if (editingNoteId) {
-      // Update existing note
-      await storage.updateNote(editingNoteId, {
-        title,
-        content,
-        urlPattern: pattern || null
-      });
+      // Update existing note or publish draft
+      if (isDraftMode) {
+        // Convert draft to regular note
+        await storage.updateNote(editingNoteId, {
+          title,
+          content,
+          urlPattern: pattern || null,
+          isDraft: false
+        });
+      } else {
+        // Update existing note
+        await storage.updateNote(editingNoteId, {
+          title,
+          content,
+          urlPattern: pattern || null
+        });
+      }
     } else {
-      // Create new note
+      // Create new note (not a draft)
       await storage.addNote({
         url: noteUrl.value,
         title,
         content,
-        urlPattern: pattern || null
+        urlPattern: pattern || null,
+        isDraft: false
       });
     }
     

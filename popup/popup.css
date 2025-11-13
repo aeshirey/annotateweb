@@ -193,6 +193,16 @@ body {
   box-shadow: 0 2px 8px rgba(0,0,0,0.1);
 }
 
+.note-card.draft-card {
+  background: #fffbf0;
+  border: 2px dashed #ffa726;
+  border-left: 4px solid #ff9800;
+}
+
+.note-card.draft-card:hover {
+  box-shadow: 0 2px 8px rgba(255, 152, 0, 0.2);
+}
+
 .note-header {
   display: flex;
   justify-content: space-between;
@@ -205,6 +215,21 @@ body {
   font-size: 15px;
   color: #333;
   flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.draft-badge {
+  display: inline-block;
+  background: #ff9800;
+  color: white;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
 }
 
 .note-actions {
