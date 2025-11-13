@@ -1,5 +1,11 @@
 # AnnotateWeb - Web Page Note Taker
 
+> This is a vibe-coded extension that more or less matches something I manually built back in ~2018. The goal is to have the ability to take notes within your browser that you can refer to later, and each note is associated with a regular expression that matches URLs. These notes are kept in [`localStorage`](https://developer.mozilla.org/en-US/docs/Web/API/Window/localStorage), so they're private to you.
+> 
+> Now on to the AI slop!
+> 
+> -Adam
+
 A Microsoft Edge browser extension that allows you to take markdown-formatted notes on any webpage with flexible URL pattern matching.
 
 ## Features
